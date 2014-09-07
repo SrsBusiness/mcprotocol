@@ -88,11 +88,11 @@ int main(int argc, char **argv){
     char login_start[20] = {0x08, 0x00, 6, 'a', 'n', '_', 'g', 'u', 'y'};
     char test[2] = {0x80, 0x02};
     uint64_t val;
-    uvarint64(test, &val);
-    printf("varint: %d\n");
-    char buf[100] = {0};
-    int len = uvarint64_encode(256, buf, 1);
-    printf("len: %d, %hhx %hhx\n", len, buf[0], buf[1]);
+    //uvarint64(test, &val);
+    //printf("varint: %d\n");
+    //char buf[100] = {0};
+    //int len = uvarint64_encode(256, buf, 1);
+    //printf("len: %d, %hhx %hhx\n", len, buf[0], buf[1]);
     //int bytes_sent = send_raw(&test_bot, handshake, 16);
     //printf("sent %d bytes\n", bytes_sent);
     //bytes_sent = send_raw(&test_bot, login_start, 9);

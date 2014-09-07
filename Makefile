@@ -1,9 +1,12 @@
 CC = gcc
-FILES = protocol.c
-OUT = MC
+OUT = mcbot
+_FILES = bot.c marshal.c protocol.c
+FDIR = src
+FILES= $(patsubst %,$(FDIR)/%,$(_FILES))
+CFLAGS=-Wall
 
-build: $(FILES)
-	$(CC) -o $(OUT) $(FILES)
+build: 
+	$(CC) -o $(OUT) $(FILES) $(CFLAGS)
 
 clean:
 	rm -f *.o core
