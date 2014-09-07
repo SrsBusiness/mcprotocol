@@ -1,9 +1,16 @@
 CC = gcc
-FILES = protocol.c
-OUT = MC
+SA = scan-build
+OUT = mcbot
+_FILES = bot.c marshal.c protocol.c
+FDIR = src
+FILES= $(patsubst %,$(FDIR)/%,$(_FILES))
+CFLAGS=-Wall --std=c99
 
-build: $(FILES)
-	$(CC) -o $(OUT) $(FILES)
+build:
+	$(CC) -o $(OUT) $(FILES) $(CFLAGS)
+
+check:
+	$(SA) make
 
 clean:
 	rm -f *.o core
