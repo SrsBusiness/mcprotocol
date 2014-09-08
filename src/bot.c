@@ -11,6 +11,8 @@
 #include "bot.h"
 #include "protocol.h"
 
+#define pos(x, y, z) (((x & 0x3FFFFFF) << 38) | ((y & 0xFFF) << 26) | (z & 0x3FFFFFF))
+
 void hexDump (char *desc, void *addr, int len) {
     int i;
     unsigned char buff[17];
@@ -105,6 +107,7 @@ int send_str(bot_t *your_bot, char *str){
 }
 
 int send_raw(bot_t *your_bot, void *data, size_t len){
+    hexDump("sender", data, len);
     return send(your_bot -> socketfd, data, len, 0);
 }
 
@@ -117,12 +120,15 @@ int main() {
     vint32_t packet_size;
     uint32_t received;
     uint32_t len;
+    uint32_t tick = 0;
+    uint32_t count = 0;
     int ret, i;
 
     bot_t bot;
+    bot.state = HANDSHAKING;
     bot.packet_threshold = DEFAULT_THRESHOLD;
 
-    join_server(&bot, "25567", "10.10.2.16", "25565");
+    join_server(&bot, "25567", "10.10.2.128", "25565");
 
     send_handshaking_serverbound_handshake(&bot, 47, "localhost", 25565, 2);
     send_login_serverbound_login(&bot, "an_guy");
@@ -136,6 +142,8 @@ int main() {
     FD_SET(bot.socketfd, &readfds);
 
     while (1) {
+        usleep(30000);
+        
         select(bot.socketfd + 1, &readfds, NULL, NULL, &tv);
 
         memset(buf, 0, DEFAULT_THRESHOLD);
@@ -158,27 +166,41 @@ int main() {
             }
 
             ret = peek_packet(&bot, buf);
-            if (ret > 0x49) {
-                return 1;
-            }
-            if (ret == 0x00) {
-                play_clientbound_keepalive_t *p;
-                p = recv_play_clientbound_keepalive(&bot, buf);
-
-                printf("ping: %x\n", p->keepalive_id);
-                send_play_serverbound_keepalive(&bot, p->keepalive_id);
-                free_packet(p);
-            }
-            printf("%x\n", ret);
+            printf("%02x\n", ret);
             hexDump("buffer", buf, packet_size);
+            if (bot.state == PLAY) {
+                switch (ret) {
+                    case 0x00:{
+                        play_clientbound_keepalive_t *p;
+                        p = recv_play_clientbound_keepalive(&bot, buf);
+                        send_play_serverbound_keepalive(&bot, p->keepalive_id);
+                        free_packet(p);
+                    }
+                    case 0x01:{
+                        send_play_serverbound_client_settings(&bot, "en_US", 1, 2, 0, 0);
+                        break;
+                    }
+                    case 0x3f:{
+                        send_play_serverbound_plugin_message(&bot, "MC|Brand", "vanilla");
+                        break;
+                    }
+                    default:{
+                        break;
+                    }
+                }
+            }
         } else {
-            printf("we've got a whopper %d\n", packet_size);
+            hexDump("bigbuf", buf, received);
             while (received < packet_size) {
-                ret = receive_raw(&bot, buf, DEFAULT_THRESHOLD);
+                len = packet_size - received;
+                if (len > DEFAULT_THRESHOLD) len = DEFAULT_THRESHOLD;
+                ret = receive_raw(&bot, buf, len);
                 if (ret <= 0) return 1;
                 received += ret;
             }
+            printf("%d vs %d\n", received, packet_size);
         }
+        tick++;
     }
 
     free(buf);

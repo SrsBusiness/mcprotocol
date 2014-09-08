@@ -4,8 +4,16 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+typedef enum state {
+   HANDSHAKING,
+   LOGIN,
+   STATUS,
+   PLAY
+} state_t;
+
 typedef struct bot {
     int socketfd;
+    state_t state;
     size_t packet_threshold;
 } bot_t;
 
