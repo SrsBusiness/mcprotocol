@@ -8,7 +8,7 @@
 #include "bot.h"
 
 
-void hexDump (char *desc, void *addr, int len) {
+void hex_dump (char *desc, void *addr, int len) {
     int i;
     unsigned char buff[17];
     unsigned char *pc = (unsigned char*)addr;
@@ -87,7 +87,6 @@ void test_random_protocol() {
 
 	// encode random data with some fixed format strings
 	// make sure the decoded version is equivalent
-	int length;
 	for (int i = 0; i < TEST_CASES_FORMAT; i++) {
 		test.format = test_formats[i];
 		test.packet_id = i;
@@ -96,9 +95,9 @@ void test_random_protocol() {
 		test_decode.format = test.format;
 		test_decode.packet_id = test.packet_id;
 
-		length = format_packet(&test_bot, &test, &test_output);
+		format_packet(&test_bot, &test, &test_output);
 
-		decode_packet(test_output, &test_decode);
+		decode_packet(test_output, test_output, &test_decode);
 
 		void* original = (void*) test.data;
 		void* decoded = (void*) test_decode.data;

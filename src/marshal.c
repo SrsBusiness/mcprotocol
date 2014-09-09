@@ -11,7 +11,7 @@
 #define align(x, y) ((void *)((size_t)(x + y - 1) & (~y + 1)))
 
 // returns the number of bytes read from data
-int varint64(char *data, int64_t *value){
+int varint64(char *data, uint64_t *value){
     int64_t result = 0;
     int shifts = 0;
     do{
@@ -23,7 +23,7 @@ int varint64(char *data, int64_t *value){
 }
 
 // returns the number of bytes read from data
-int varint32(char *data, int32_t *value){
+int varint32(char *data, uint32_t *value){
     int32_t result = 0;
     int shifts = 0;
     do{
@@ -154,8 +154,10 @@ int format_packet(bot_t *bot, void *packet_data, void **packet_raw_ptr){
                 char *str = *((char **)packet_data);
                 value = strlen(str);
                 varlen = varint32_encode(value, varint, 5);
-                if(index + varlen + value > len)
+                if(index + varlen + value > len){
+                    free(packet_raw);
                     return -1; // TODO: compression
+                }
                 memcpy(packet_raw + index, varint, varlen);
                 memcpy(packet_raw + index + varlen, str, value);
                 index += value + varlen;
@@ -165,8 +167,10 @@ int format_packet(bot_t *bot, void *packet_data, void **packet_raw_ptr){
                 value = *((uint32_t *)packet_data);
                 arr_len = value;
                 varlen = varint32_encode(value, varint, 5);
-                if(index + varlen > len)
+                if(index + varlen > len){
+                    free(packet_raw);
                     return -1; // TODO: compression
+                }
                 memcpy(packet_raw + index, varint, varlen);
                 index += varlen;
                 break;
@@ -174,8 +178,10 @@ int format_packet(bot_t *bot, void *packet_data, void **packet_raw_ptr){
             case '*':{ // pointer/array
                 fmt++;
                 size_t size_elem = format_sizeof(*fmt);
-                if(index + size_elem * arr_len > len)
+                if(index + size_elem * arr_len > len){
+                    free(packet_raw);
                     return -1; // TODO: compression
+                }
                 void *arr = *((void **)packet_data);
                 for(int i = 0; i < arr_len * size_elem; i += size_elem){
                     memcpy(packet_raw + index + i, arr + i, size_elem);
@@ -186,8 +192,10 @@ int format_packet(bot_t *bot, void *packet_data, void **packet_raw_ptr){
             }
             default:{
                 size_t size = format_sizeof(*fmt);
-                if(index + size > len)
+                if(index + size > len) {
+                    free(packet_raw);
                     return -1; // TODO: compression
+                }
                 memcpy(packet_raw + index, packet_data, size);
                 reverse(packet_raw + index, size);
                 arr_len = *((int *)packet_data);
@@ -200,8 +208,10 @@ int format_packet(bot_t *bot, void *packet_data, void **packet_raw_ptr){
     }
 
     varlen = varint32_encode(index, varint, 5);
-    if(index + varlen > len)
+    if(index + varlen > len) {
+        free(packet_raw);
         return -1; // TODO: compression
+    }
     memmove(packet_raw + varlen, packet_raw, index);
     memcpy(packet_raw, varint, varlen);
     *packet_raw_ptr = packet_raw;
@@ -219,7 +229,7 @@ int decode_packet(bot_t *bot, void *packet_raw, void *packet_data){
     char *fmt = *((char **)packet_data);
     packet_data += sizeof(void *);
     
-    int32_t packet_size;
+    uint32_t packet_size;
     int packet_size_len = varint32(packet_raw, &packet_size);
     packet_raw += packet_size_len;
 
@@ -267,13 +277,12 @@ int decode_packet(bot_t *bot, void *packet_raw, void *packet_data){
 }
 
 vint32_t peek_packet(bot_t *bot, void *packet_raw){
-    int32_t packet_size;
-    int32_t value;
-    uint32_t len;
+    uint32_t packet_size;
+    uint32_t value;
     int packet_size_len = varint32(packet_raw, &packet_size);
     packet_raw += packet_size_len;
 
-    len = varint32(packet_raw, &value);
+    varint32(packet_raw, &value);
     return value;
 }
 

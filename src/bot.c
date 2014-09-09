@@ -68,7 +68,7 @@ int join_server(bot_t *your_bot, char *local_port, char* server_host,
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    if(status = getaddrinfo(NULL, local_port, &hints, &res)){
+    if((status = getaddrinfo(NULL, local_port, &hints, &res))){
         fprintf(stderr, "Your computer is literally haunted: %s\n",
                 gai_strerror(status));
         return -1;
@@ -83,7 +83,7 @@ int join_server(bot_t *your_bot, char *local_port, char* server_host,
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    if(status = getaddrinfo(server_host, server_port, &hints, &res)){
+    if((status = getaddrinfo(server_host, server_port, &hints, &res))){
         fprintf(stderr, "Server could not be resolved: %s\n",
                 gai_strerror(status));
         return -1;
@@ -95,7 +95,7 @@ int join_server(bot_t *your_bot, char *local_port, char* server_host,
     return sockfd;
 }
 
-int disconnect(bot_t *your_bot){
+void disconnect(bot_t *your_bot){
     close(your_bot -> socketfd);
 }
 
@@ -171,7 +171,10 @@ int main() {
         memset(buf, 0, DEFAULT_THRESHOLD);
         for (i = 0; i < 5; i++) {
             ret = receive_raw(&bot, buf + i, 1);
-            if (ret <= 0) return 1;
+            if (ret <= 0) {
+                free(buf);
+                return 1;
+            }
             if ((buf[i] & 0x80) == 0) break;
         }
 
