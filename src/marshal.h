@@ -13,6 +13,7 @@ void reverse(void *number, int len);
 
 int format_packet(bot_t *bot, void *packet_data, void **packet_raw_ptr);
 int decode_packet(bot_t *bot, void *packet_raw, void *packet_data);
+vint32_t peek_packet(bot_t *bot, void *packet_raw);
 void free_packet(void *);
 
 #endif /* MARSHAL_H */
