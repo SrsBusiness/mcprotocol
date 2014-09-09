@@ -521,7 +521,7 @@ int32_t send_play_serverbound_player_status(
 int32_t send_play_serverbound_plugin_message(
     bot_t*        bot,
     char*         channel,
-    int8_t*       data
+    char*         data
 )
 {
     uint32_t length;
@@ -1214,7 +1214,7 @@ recv_play_clientbound_plugin_message(bot_t* bot, void *packet)
 {
     play_clientbound_plugin_message_t *p;
     p = calloc(1, sizeof(play_clientbound_plugin_message_t));
-    p->format = "vs*b";
+    p->format = "vss";
     p->packet_id = 0x3F;
 
     decode_packet(bot, packet, p);
