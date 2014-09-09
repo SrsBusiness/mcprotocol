@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "bot.h"
+#include "protocol.h"
 
 int varint64(char *data, int64_t *value);
 int varint32(char *data, int32_t *value);
