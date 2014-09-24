@@ -8,9 +8,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <string.h>
+#include <jansson.h>
 #include "bot.h"
 #include "protocol.h"
 #include "marshal.h"
+
+#define pos(x, y, z) (((x & 0x3FFFFFF) << 38) | ((y & 0xFFF) << 26) | (z & 0x3FFFFFF))
 
 void hexDump (char *desc, void *addr, int len) {
     int i;
@@ -96,7 +100,7 @@ int join_server(bot_t *your_bot, char *local_port, char* server_host,
 }
 
 int disconnect(bot_t *your_bot){
-    close(your_bot -> socketfd);
+    return close(your_bot -> socketfd);
 }
 
 int send_str(bot_t *your_bot, char *str){
@@ -106,6 +110,7 @@ int send_str(bot_t *your_bot, char *str){
 }
 
 int send_raw(bot_t *your_bot, void *data, size_t len){
+    // hexDump("sender", data, len);
     return send(your_bot -> socketfd, data, len, 0);
 }
 
@@ -113,46 +118,20 @@ int receive_raw(bot_t *your_bot, void *data, size_t len){
     return recv(your_bot -> socketfd, data, len, 0);
 }
 
-// int main(int argc, char **argv){
-//     //if(argc < 4){
-//     //    fprintf(stderr, "Specify local port, remote hostname/ip, and remote port\n");
-//     //    exit(1);
-//     //}
-//     //bot_t test_bot;
-//     //if(join_server(&test_bot, argv[1], argv[2], argv[3]) == -1){
-//     //    return -1;
-//     //}
-//     char handshake[20] = {0x0F, 0x00, 47, 0x09, 'l', 'o', 'c', 'a', 'l', 'h', 'o', 's', 't', 0x63, 0xDD, 0x02};
-//     char login_start[20] = {0x08, 0x00, 6, 'a', 'n', '_', 'g', 'u', 'y'};
-//     char test[2] = {0x80, 0x02};
-//     uint64_t val;
-//     // uvarint64(test, &val);
-//     printf("varint: %d\n");
-//     char buf[100] = {0};
-//     // int len = uvarint64_encode(256, buf, 1);
-//     printf("len: %d, %hhx %hhx\n", len, buf[0], buf[1]);
-//     //int bytes_sent = send_raw(&test_bot, handshake, 16);
-//     //printf("sent %d bytes\n", bytes_sent);
-//     //bytes_sent = send_raw(&test_bot, login_start, 9);
-//     //int bytes_received = receive_raw(&test_bot, buf, 100);
-//     //printf("received %d bytes\n", bytes_received);
-//     //printf("%hhX %hhX %hhX %hhX\n", buf[0], buf[1], buf[2], buf[3]);
-//     //disconnect(&test_bot);
-//     //char var[2] = {0xAC, 0x02};
-//     //printf("%d\n", varint64(var));
-// }
-
 int main() {
     char* buf = calloc(sizeof(char), DEFAULT_THRESHOLD);
     vint32_t packet_size;
     uint32_t received;
     uint32_t len;
+    uint32_t tick = 0;
+    uint32_t count = 0;
     int ret, i;
 
     bot_t bot;
+    bot.state = HANDSHAKING;
     bot.packet_threshold = DEFAULT_THRESHOLD;
 
-    join_server(&bot, "25567", "10.10.2.16", "25565");
+    join_server(&bot, "25567", "lf.lc", "25565");
 
     send_handshaking_serverbound_handshake(&bot, 47, "localhost", 25565, 2);
     send_login_serverbound_login(&bot, "an_guy");
@@ -166,6 +145,8 @@ int main() {
     FD_SET(bot.socketfd, &readfds);
 
     while (1) {
+        usleep(30000);
+        
         select(bot.socketfd + 1, &readfds, NULL, NULL, &tv);
 
         memset(buf, 0, DEFAULT_THRESHOLD);
@@ -188,27 +169,88 @@ int main() {
             }
 
             ret = peek_packet(&bot, buf);
-            if (ret > 0x49) {
-                return 1;
-            }
-            if (ret == 0x00) {
-                play_clientbound_keepalive_t *p;
-                p = recv_play_clientbound_keepalive(&bot, buf);
+            // printf("%02x\n", ret);
+            // hexDump("buffer", buf, packet_size);
+            if (bot.state == PLAY) {
+                switch (ret) {
+                    case 0x00:{
+                        play_clientbound_keepalive_t *p;
+                        p = recv_play_clientbound_keepalive(&bot, buf);
+                        send_play_serverbound_keepalive(&bot, p->keepalive_id);
+                        free_packet(p);
+                        break;
+                    }
+                    case 0x02:{
+                        play_clientbound_chat_t *p;
+                        p = recv_play_clientbound_chat(&bot, buf);
 
-                printf("ping: %x\n", p->keepalive_id);
-                send_play_serverbound_keepalive(&bot, p->keepalive_id);
-                free_packet(p);
+                        json_t *root;
+                        json_error_t error;
+                        root = json_loads(p->json, 0, &error);
+                        free_packet(p);
+
+                        if(!root) {
+                            fprintf(stderr, "error: on line %d: %s\n", error.line, error.text);
+                            break;
+                        }
+                        json_t *translate = json_object_get(root, "translate");
+                        if(!json_is_string(translate)) {
+                            fprintf(stderr, "error: translate is not a string\n");
+                            json_decref(root);
+                            break;
+                        }
+                        const char* translate_text = json_string_value(translate);
+                        if (strcmp(translate_text, "chat.type.text") == 0) {
+                            json_t *with_array = json_object_get(root, "with");
+                            if (!json_is_array(with_array)) {
+                                fprintf(stderr, "error: with is not an array\n");
+                                json_decref(root);
+                                break;
+                            }
+
+                            for(i = 0; i < json_array_size(with_array); i++) {
+                                json_t *data;
+                                const char *msg;
+
+                                data = json_array_get(with_array, i);
+                                if (json_is_string(data)) {
+                                    msg = json_string_value(data);
+                                    printf("%s\n", msg);
+                                }
+                            }
+                        }
+
+                        json_decref(root);
+                        break;
+                    }
+                    case 0x3f:{
+                        send_play_serverbound_plugin_message(&bot, "MC|Brand", "vanilla");
+                        break;
+                    }
+                    default:{
+                        break;
+                    }
+                }
             }
-            printf("%x\n", ret);
-            hexDump("buffer", buf, packet_size);
         } else {
-            printf("we've got a whopper %d\n", packet_size);
+            // hexDump("bigbuf", buf, received);
             while (received < packet_size) {
-                ret = receive_raw(&bot, buf, DEFAULT_THRESHOLD);
+                len = packet_size - received;
+                if (len > DEFAULT_THRESHOLD) len = DEFAULT_THRESHOLD;
+                ret = receive_raw(&bot, buf, len);
                 if (ret <= 0) return 1;
                 received += ret;
             }
+            // printf("%d vs %d\n", received, packet_size);
         }
+
+        if (bot.state == PLAY) {
+            if ((tick % 50) == 1) {
+                send_play_serverbound_chat(&bot, "hello world!");
+            }
+
+        }
+        tick++;
     }
 
     free(buf);

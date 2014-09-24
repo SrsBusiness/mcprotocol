@@ -569,7 +569,7 @@ typedef struct play_clientbound_plugin_message {
     vint32_t      packet_id;
 
     char*         channel;
-    int8_t*       data;
+    char*         data;
 } play_clientbound_plugin_message_t;
 
 typedef struct play_clientbound_plugin_disconnect {
@@ -754,7 +754,7 @@ typedef struct play_serverbound_plugin_message {
     vint32_t      packet_id;
 
     char*         channel;
-    int8_t*       data;
+    char*         data;
 } play_serverbound_plugin_message_t;
 
 typedef struct play_serverbound_spectate {
@@ -932,7 +932,7 @@ int32_t send_play_serverbound_player_status(
 int32_t send_play_serverbound_plugin_message(
     bot_t*        bot,
     char*         channel,
-    int8_t*       data
+    char*         data
 );
 
 int32_t send_play_serverbound_spectate(

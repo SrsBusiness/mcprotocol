@@ -30,6 +30,7 @@ int32_t send_handshaking_serverbound_handshake(
     send_raw(bot, packet, length);
     free(packet);
 
+    bot->state = LOGIN;
     return length;
 }
 
@@ -54,6 +55,7 @@ int32_t send_login_serverbound_login(
     send_raw(bot, packet, length);
     free(packet);
 
+    bot->state = PLAY;
     return length;
 }
 
@@ -153,9 +155,18 @@ int32_t send_play_serverbound_entity_use(
 {
     uint32_t length;
     play_serverbound_entity_use_t p;
-    p.format = "vvvwww";
+    switch (type) {
+        case 2:
+            p.format = "vvvwww";
+            break;
+        default:
+            p.format = "vvv";
+            break;
+    }
     p.packet_id = 0x02;
 
+    p.target = target;
+    p.type = type;
     p.x = x;
     p.y = y;
     p.z = z;
@@ -510,12 +521,12 @@ int32_t send_play_serverbound_player_status(
 int32_t send_play_serverbound_plugin_message(
     bot_t*        bot,
     char*         channel,
-    int8_t*       data
+    char*         data
 )
 {
     uint32_t length;
     play_serverbound_plugin_message_t p;
-    p.format = "vs*b";
+    p.format = "vss";
     p.packet_id = 0x17;
 
     p.channel = channel;
@@ -1203,7 +1214,7 @@ recv_play_clientbound_plugin_message(bot_t* bot, void *packet)
 {
     play_clientbound_plugin_message_t *p;
     p = calloc(1, sizeof(play_clientbound_plugin_message_t));
-    p->format = "vs*b";
+    p->format = "vss";
     p->packet_id = 0x3F;
 
     decode_packet(bot, packet, p);
